@@ -135,10 +135,10 @@ monitor(struct Trapframe *tf)
 
 	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
-	cprintf("%m%s\n%m%s\n%m%s\n", 
-    0x0100, "blue", 0x0200, "green", 0x0400, "red");
+	// cprintf("%m%s\n%m%s\n%m%s\n", 
+ //    0x0100, "blue", 0x0200, "green", 0x0400, "red");
 
-	cprintf("x=%d y=%d\n", 3);
+	// cprintf("x=%d y=%d\n", 3);
 
 	while (1) {
 		buf = readline("AbtalELDigital> ");

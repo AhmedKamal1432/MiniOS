@@ -111,7 +111,6 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
       num = getint(&ap, lflag);
       csa = num;
       break;
-
 		// flag to pad on the right
 		case '-':
 			padc = '-';
@@ -216,7 +215,6 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			num = getuint(&ap, lflag);
       base = 8;
       goto number;
-
 		// pointer
 		case 'p':
 			putch('0', putdat);
