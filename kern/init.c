@@ -6,6 +6,8 @@
 
 #include <kern/monitor.h>
 #include <kern/console.h>
+#include <kern/pmap.h>
+#include <kern/kclock.h>
 
 // Test the stack backtrace function (lab 1 only)
 void
