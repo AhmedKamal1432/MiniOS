@@ -1,0 +1,8 @@
+http://www.tutorialspoint.com/operating_system/os_memory_management.htm
+
+https://github.com/Clann24/jos/blob/master/lab2/code/kern/pmap.chere
+
+https://github.com/Clann24/jos/blob/master/lab2/code/kern/pmap.c
+
+https://github.com/Clann24/jos/tree/master/lab2
+
