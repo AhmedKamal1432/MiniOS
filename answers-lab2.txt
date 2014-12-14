@@ -1,0 +1,35 @@
+REQ 3:
+ Becuase all pointers in code are virtual adresses, we can't use physical adresses inside the code.
+
+REQ 5:
+	2.
+	+--------------------------------------------------------+
+	| Base Virtual Address   | Points to(logically)					 |
+	+--------------------------------------------------------+
+	|[0xef000000, 0xef400000)| pages												 |
+	+--------------------------------------------------------+
+	|[0xefff8000, 0xf0000000)| bootstack										 |
+	+--------------------------------------------------------+
+	|[0xf0000000, 0xffffffff)| KERNEL: 1st 256 MB of physical| 
+	|												 | memory [0x0, 0xfffffff)			 |
+	+--------------------------------------------------------+
+	
+	3. The User flag in PTE, is disbaled through PTE_U
+
+	4. upages are saved for 4 MB, it contains the pages-info struct, every info struct has 8-Byte, so we can know number of pages = 4 MB / 8 B = 512 K, as page size is 4 k, So physical size equals to 4 k * 512 K = 2 GB, as the kernel is loaded in the virtual memory map ( described in memlayout.h), it canno't be loaded more than 256 MB, and that is for Kernel size limit, any other pages will be mapped using mapping tables.
+
+	5. before managing memory overhead is:
+	(2 GB / 4 K) * 8 B : 4 MB, values of (struct pages).
+	+ 4 K page Directory
+	+ (2 GB / 4 k) * 4 : 2 MB, value of page tables
+	= 6 Mb + 4 k.
+	and for physical memory, if it used 256 of Kernel,
+	so ( 256 MB / 4 K ) * 8 B = 512 KB, valuse of (struct pages).
+	+ 4 KB, for page directory
+	+ ( 256 MB / 4 K) * 4 KB = 256 KB, number of page tables
+	= 772 KB
+
+	6. at this instruction :
+	|= mov	$relocated, %eax
+	|= jmp	*%eax
+	the transition here is done of EIP.
