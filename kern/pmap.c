@@ -8,6 +8,7 @@
 
 #include <kern/pmap.h>
 #include <kern/kclock.h>
+#include <inc/memlayout.h>
 
 // These variables are set by i386_detect_memory()
 size_t npages;			// Amount of physical memory (in pages)
@@ -46,7 +47,7 @@ i386_detect_memory(void)
 	else
 		npages = npages_basemem;
 
-	cprintf("Physical memory: %uK available, base = %uK, extended = %uK\n",
+	cprintf("\nPhysical memory: %uK available, base = %uK, extended = %uK\n",
 		npages * PGSIZE / 1024,
 		npages_basemem * PGSIZE / 1024,
 		npages_extmem * PGSIZE / 1024);
@@ -98,8 +99,16 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
+	if( n > 0){
+		result = nextfree;
+		// nextfree = ROUNDUP(n,PGSIZE) + nextfree;
+				nextfree = ROUNDUP((char *) (nextfree+n), PGSIZE);
+		return result;
+	}
+	else
+		return nextfree;
 
-	return NULL;
+	// return NULL;
 }
 
 // Set up a two-level page table:
@@ -121,7 +130,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	// panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -145,7 +154,8 @@ mem_init(void)
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
 
-
+  pages = (struct PageInfo *) boot_alloc(npages * sizeof(struct PageInfo)) ;
+	
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -248,11 +258,33 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
-	for (i = 0; i < npages; i++) {
+
+	//intiaize BIOS page
+	pages[0].pp_ref = 1;
+	
+	// initialze 1 -> basemem 
+	for (i = 1; i <	 npages_basemem; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
 	}
+	
+	// the last thing in the kernel is the pages array 
+	// which is end the nextfree pointer
+	 int kernel_end = (int)ROUNDUP((char *)pages + (sizeof(struct PageInfo) * npages) -KERNBASE,PGSIZE) / PGSIZE ;
+
+	 cprintf("\nkernel end: %d\n\n", kernel_end);
+
+	for (i = npages_basemem; i < kernel_end; ++i)
+		pages[i].pp_ref =1;
+
+	for (i = kernel_end; i < npages; ++i){
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+	}
+
+	
 }
 
 //
@@ -271,7 +303,19 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	return 0;
+	//out of free memory
+	if(!page_free_list){ 
+	 return NULL;
+	}
+	struct PageInfo * res = page_free_list;
+	page_free_list = page_free_list->pp_link;
+
+	// this is not in the answer link 
+  res->pp_link = NULL;
+
+	if(alloc_flags & ALLOC_ZERO)
+		memset(page2kva(res),0,PGSIZE);
+	return res;
 }
 
 //
@@ -284,6 +328,11 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if(pp->pp_ref != 0)
+		panic("Cannot free this page");
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
+
 }
 
 //
@@ -523,6 +572,7 @@ check_page_alloc(void)
 	assert(page2pa(pp1) < npages*PGSIZE);
 	assert(page2pa(pp2) < npages*PGSIZE);
 
+
 	// temporarily steal the rest of the free pages
 	fl = page_free_list;
 	page_free_list = 0;
@@ -643,6 +693,7 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 static void
 check_page(void)
 {
+	cprintf("in check_page\n");
 	struct PageInfo *pp, *pp0, *pp1, *pp2;
 	struct PageInfo *fl;
 	pte_t *ptep, *ptep1;
