@@ -10,6 +10,8 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
+#include <kern/kclock.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -25,6 +27,10 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display information about our stack", mon_backtrace },
+	{ "showmapping", "display the physical page mappings and corresponding permission bits", mon_showmapping },
+	{ "set", "change a virtual address flags:\n{P,W,U} => {Present,Writeable,User} : {0,1,2} => {clear,set,change}", mon_set },
+	{ "dump", "{P,V} for addresses => range {start,end}", mon_dump },
+
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -82,7 +88,117 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }	
 
+int
+mon_showmapping(int argc, char **argv, struct Trapframe *tf)
+{
+	if ( argc != 3) panic("your command should be like showmappings Address1 Address2");
+	uint32_t begin,end;
+	begin = mon_xtoi(argv[1]);
+	end  = mon_xtoi(argv[2]);
+	//cprintf("%d %d\n",begin,end);
+	pte_t * pte;
+	for(; begin <= end ; begin += PGSIZE){
+		pte = pgdir_walk(kern_pgdir,(void * )begin, 1);
+		if( pte == NULL){
+			cprintf("memory exception\n");
+			return 0;
+		}
+		cprintf("virtual address: %x\n",begin);
+		cprintf("physical address: %x\n",PTE_ADDR(pte) | PGOFF(begin) );
+		cprintf("PTE_P : %x PTE_U: %x PTE_W: %x\n",( (*pte) & PTE_P ),( (*pte) & PTE_U ) >> (2), ((*pte) & PTE_W)>> (1) );
+	}
+	return 0;
+}	
 
+int
+mon_set(int argc, char **argv, struct Trapframe *tf)
+{
+	if ( argc != 4) panic("invalid arguments");
+	int va = mon_xtoi(argv[1]);
+	int perm;
+	if ( *argv[2] == 'P' || *argv[2] == 'p'){
+		perm = PTE_P;
+	} else if(*argv[2] == 'W' || *argv[2] == 'w' ){
+		perm = PTE_W;
+	} else if(*argv[2] == 'U' || *argv[2] == 'u' ){
+		perm = PTE_U;
+	}else{
+		cprintf("error in comand - back to command window");
+		return 0;
+	}
+	pte_t * pte = pgdir_walk(kern_pgdir,(void *) va,1);
+	if ( pte == NULL){
+		cprintf("memory exception");
+		return 0;
+	}
+	cprintf("orignal: virtual address: %x ",va);
+	cprintf("PTE_P : %x PTE_U: %x PTE_W: %x\n",( (*pte) & PTE_P ),( (*pte) & PTE_U ) >> (2), ((*pte) & PTE_W)>> (1) );
+	
+	if( *argv[3] == '0' ){
+		*pte = *pte & ( ~ perm);
+	} else if ( *argv[3] == '1'){
+		*pte = *pte | ( perm );
+	} else if ( *argv[3] == '2'){
+		*pte = *pte ^ ( perm );
+	}else{
+		cprintf("error in command - back to command window");
+		return 0;
+	}
+	cprintf("edited: virtual address: %x ",va);
+	cprintf("PTE_P : %x PTE_U: %x PTE_W: %x\n",( (*pte) & PTE_P ),( (*pte) & PTE_U ) >> (2), ((*pte) & PTE_W)>> (1) );
+	
+	return 0;
+}	
+// showmapping 0xf0000000 0xffffffff
+int
+mon_dump(int argc, char **argv, struct Trapframe *tf)
+{
+	if ( argc != 4 ) panic("invalid arguments");
+	int start,end;
+	start = mon_xtoi(argv[2]);
+	end = mon_xtoi(argv[3]);
+	pte_t * pte;
+	uint32_t * ph;
+	for( ; start <= end ; start ++){
+		if ( *argv[1] == 'V' || *argv[1] == 'v')
+			{
+				pte = pgdir_walk(kern_pgdir,(void*)start,1);
+				ph =(uint32_t *)  ( PTE_ADDR(pte) | PGOFF(start) );
+			}
+			else ph=(uint32_t *) start;
+			cprintf("(before) address = %x value = %x\n",ph,*ph);
+			*ph=0;
+			cprintf("(after) address = %x value = %x\n",ph,*ph);
+	}
+
+//dump v 0xf0000005 0xf0000009
+	return 0;
+}
+/***** helper functions *****/
+uint32_t mon_xtoi(char * arg){
+	uint32_t rst=0;
+	uint32_t mul = 1;
+	uint32_t add = 0;
+	uint32_t sz = strlen(arg);
+	if (arg[0] != '0' && ( arg[1] != 'x' || arg[1] != 'X' ) ) panic("invalid HEX");
+	//cprintf("%d\n",sz);
+	sz = sz - 1;
+	for(; sz >= 2 ; sz--){
+		if ( arg[sz] >= 'a' && arg[sz] <= 'z'){
+			add = (arg[sz] -'a' + 10);
+		}
+		else if ( arg[sz] >= 'A' && arg[sz] <= 'Z'){
+			add = (arg[sz] -'a' + 10);
+		}
+		else{
+			add = arg[sz] - '0';
+		}
+		add *= mul;
+		mul *= 16;
+		rst += add;
+	}
+	return rst;
+}
 
 /***** Kernel monitor command interpreter *****/
 
